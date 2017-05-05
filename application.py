@@ -9,7 +9,7 @@ import jwt
 import time
 
 application = flask.Flask(__name__)
-application.config['SECRET_KEY'] = 'gT9}kAgM8HK4VPp$dJCezL=}DQ2pKM'
+application.config['SECRET_KEY'] = ''
 application.config['EXPIRE'] = 3600
 
 ERR_UNKNOWN = 100
