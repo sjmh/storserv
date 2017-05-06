@@ -9,6 +9,10 @@ import jwt
 import time
 
 application = flask.Flask(__name__)
+
+# The secret key should really be read from something like DynamoDB
+# or an s3 bucket in an encrypted format, and then use KMS to decrypt
+# it
 application.config['SECRET_KEY'] = ''
 application.config['EXPIRE'] = 3600
 
