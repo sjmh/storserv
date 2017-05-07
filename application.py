@@ -176,8 +176,8 @@ def login():
     '''
 
     if 'username' in flask.request.form and 'password' in flask.request.form:
-        user = flask.request.form['username'].encode('utf-8')
-        password = flask.request.form['password'].encode('utf-8')
+        user = flask.request.form['username']
+        password = flask.request.form['password']
         try:
             s3.head_object(Bucket='storserv-users', Key=user)
         except botocore.exceptions.ClientError:
