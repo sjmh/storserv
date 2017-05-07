@@ -7,6 +7,7 @@ import botocore
 import functools
 import jwt
 import time
+import requests
 
 application = flask.Flask(__name__)
 
@@ -24,7 +25,17 @@ ERR_TOKEN_EXPIRED = 500
 ERR_KEY_EXISTS = 600
 
 with application.app_context():
+    resp = requests.get(
+        'http://169.254.169.254/latest/meta-data/placement/availability-zone'
+    )
+    region = resp.content[:-1]
     s3 = boto3.client('s3')
+    ssm = boto3.client('ssm', region_name=region)
+    response = ssm.get_parameters(
+        Names=['storserv-jwt'],
+        WithDecryption=True
+    )
+    application.config['SECRET_KEY'] = response['Parameters'][0]['Value']
 
 
 def message(**kwargs):
