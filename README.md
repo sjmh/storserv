@@ -33,6 +33,31 @@ Once you've logged in, you'll receive a JWT token.  This token needs to be passe
 Authorization: Bearer <token>
 ```
 
+## keystore
+
+The keystore supports the basics:
+
+*GET*: Get the value of a key
+
+- `/v1/data/<key>`
+- `/v1/data/<dir>/`
+- `/v1/data/<dir>/<key>`
+
+*POST*: Put a new key
+
+- `/v1/data/<key> -X POST -d value={someval}`
+- `/v1/data/<dir>/<key> -X POST -d value={someval}`
+
+*PUT*: Update a key ( or creates the key if it doesn't exist )
+
+- `/v1/data/<key> -X PUT -d value={someval}`
+- `/v1/data/<dir>/<key> -X PUT -d value={someval}`
+
+*DELETE*: Remove a key
+
+- `/v1/data/<key> -X DELETE`
+- `/v1/data/<dir>/<key> -X DELETE`
+
 ## example
 
 Request:
@@ -59,3 +84,6 @@ Response:
   "value": "bar"
 }
 ```
+
+Request:
+``
