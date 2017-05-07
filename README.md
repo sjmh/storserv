@@ -13,3 +13,12 @@ In order for this to be deployed via elastic beanstalk, you'll need to configure
 - Modify the 'PREFIX' config to set the bucket prefix
 - Create an s3 bucket called '{PREFIX}-users'
 - Create a key in the users bucket named after the user with a value that represents a bcrypted password
+
+## demo
+
+The demo is available at https://kvstore.phase2.net, with the username 'demo', password 'demo'
+
+Quick reference:
+    - /v1/ping (GET)
+    - /v1/login (POST, username, password)
+    - /v1/data/ (keystore)
