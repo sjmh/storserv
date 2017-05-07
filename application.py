@@ -10,11 +10,6 @@ import time
 import requests
 
 application = flask.Flask(__name__)
-
-# The secret key should really be read from something like DynamoDB
-# or an s3 bucket in an encrypted format, and then use KMS to decrypt
-# it
-application.config['SECRET_KEY'] = ''
 application.config['EXPIRE'] = 3600
 
 ERR_UNKNOWN = 100
@@ -24,18 +19,28 @@ ERR_UNAUTHORIZED = 400
 ERR_TOKEN_EXPIRED = 500
 ERR_KEY_EXISTS = 600
 
-with application.app_context():
-    resp = requests.get(
-        'http://169.254.169.254/latest/meta-data/placement/availability-zone'
-    )
-    region = resp.content[:-1]
-    s3 = boto3.client('s3')
-    ssm = boto3.client('ssm', region_name=region)
-    response = ssm.get_parameters(
-        Names=['storserv-jwt'],
-        WithDecryption=True
-    )
-    application.config['SECRET_KEY'] = response['Parameters'][0]['Value']
+
+def get_db():
+    if not hasattr(flask.g, 's3'):
+        flask.g.s3 = boto3.client('s3')
+    return flask.g.s3
+
+
+def get_secret():
+    if application.config['SECRET_KEY'] is None:
+        resp = requests.get(
+            'http://169.254.169.254/latest/meta-data/placement/availability-zone'
+        )
+        region = resp.content[:-1]
+        ssm = boto3.client('ssm', region_name=region)
+        response = ssm.get_parameters(
+            Names=['storserv-jwt'],
+            WithDecryption=True
+        )
+        application.config['SECRET_KEY'] = response['Parameters'][0]['Value']
+        if application.config['SECRET_KEY'] == '':
+            raise Exception('Could not determine the secret key')
+    return application.config['SECRET_KEY']
 
 
 def message(**kwargs):
@@ -57,22 +62,24 @@ def jwtrequired(fn):
     '''
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
+        secret = get_secret()
         if 'Authorization' in flask.request.headers:
             try:
                 token = flask.request.headers['Authorization'].split()
-                payload = jwt.decode(token[1], application.config['SECRET_KEY'])
+                payload = jwt.decode(token[1], secret)
             except jwt.DecodeError as e:
-                return error("Unable to decode JWT: {0}".format(e), ERR_UNKNOWN)
+                return error('Unable to decode JWT: {0}'.format(e), ERR_UNKNOWN)
             except jwt.ExpiredSignatureError:
                 return error('Token is expired', ERR_TOKEN_EXPIRED)
             flask.request._bucket = payload['buk']
         else:
-            return error("Unauthorized", ERR_UNAUTHORIZED)
+            return error('Unauthorized', ERR_UNAUTHORIZED)
         return fn(*args, **kwargs)
     return wrapper
 
 
 def obj_exists(bucket, key):
+    s3 = get_db()
     try:
         s3.head_object(Bucket=bucket, Key=key)
         return True
@@ -80,18 +87,19 @@ def obj_exists(bucket, key):
         return False
 
 
-@application.route("/v1/data/", methods=["GET"])
+@application.route('/v1/data/', methods=['GET'])
 @jwtrequired
 def get_root():
     return get('/')
 
 
-@application.route("/v1/data/<path:key>", methods=["GET"])
+@application.route('/v1/data/<path:key>', methods=['GET'])
 @jwtrequired
 def get(key):
     '''
     Retrieves a key's value
     '''
+    s3 = get_db()
     if key.endswith('/'):
         # A little bit of a hack to allow for listing the root directory
         if key == '/':
@@ -112,12 +120,13 @@ def get(key):
         return error('Key {0} not found'.format(key), ERR_KEY_NOT_EXIST)
 
 
-@application.route("/v1/data/<path:key>", methods=["PUT"])
+@application.route('/v1/data/<path:key>', methods=['PUT'])
 @jwtrequired
 def edit(key):
     '''
     Updates a key's value
     '''
+    s3 = get_db()
     if 'value' in flask.request.form:
         val = flask.request.form['value']
     else:
@@ -129,12 +138,13 @@ def edit(key):
     return message(key=key, value=val)
 
 
-@application.route("/v1/data/<path:key>", methods=["POST"])
+@application.route('/v1/data/<path:key>', methods=['POST'])
 @jwtrequired
 def new(key):
     '''
     Inserts a new key into the user's bucket
     '''
+    s3 = get_db()
     if obj_exists(flask.request._bucket, key):
         return error('Key {0} already exists'.format(key), ERR_KEY_EXISTS)
 
@@ -149,12 +159,13 @@ def new(key):
     return message(key=key, value=val)
 
 
-@application.route("/v1/data/<path:key>", methods=["DELETE"])
+@application.route('/v1/data/<path:key>', methods=['DELETE'])
 @jwtrequired
 def delete(key):
     '''
     Deletes a key from the user's bucket
     '''
+    s3 = get_db()
     if not obj_exists(flask.request._bucket, key):
         return error('Key not found', ERR_KEY_NOT_EXIST, key=key)
 
@@ -165,7 +176,7 @@ def delete(key):
     return message(message='Deleted key', key=key)
 
 
-@application.route("/v1/login", methods=["POST"])
+@application.route('/v1/login', methods=['POST'])
 def login():
     '''
     Authenticates the username and password of a user by comparing it to the bcrypt'd
@@ -174,10 +185,10 @@ def login():
     It then generates a JWT token based off the username and password.
     The payload of the JWT includes the name of the bucket for the user's keys
     '''
-
+    s3 = get_db()
     if 'username' in flask.request.form and 'password' in flask.request.form:
-        user = flask.request.form['username']
-        password = flask.request.form['password']
+        user = flask.request.form['username'].encode('utf-8')
+        password = flask.request.form['password'].encode('utf-8')
         try:
             s3.head_object(Bucket='storserv-users', Key=user)
         except botocore.exceptions.ClientError:
@@ -195,7 +206,12 @@ def login():
                 'buk': 'storserv-{0}'.format(user),
                 'exp': time.time() + application.config['EXPIRE']
             }
-            token = jwt.encode(payload, application.config['SECRET_KEY'], algorithm='HS256')
+            try:
+                secret = get_secret()
+                token = jwt.encode(payload, secret, algorithm='HS256')
+            except KeyError:
+                return error('Could not issue token', ERR_UNKNOWN)
+
             return flask.jsonify({'jwt': token})
         else:
             return error('Invalid username or password', ERR_UNAUTHORIZED)
@@ -203,10 +219,10 @@ def login():
         return error('You must specify a username and a password', ERR_BAD_REQUEST)
 
 
-@application.route("/v1/ping", methods=["GET"])
+@application.route('/v1/ping', methods=['GET'])
 def ping():
-    return "pong"
+    return 'pong'
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     application.run(host='0.0.0.0', port='80')

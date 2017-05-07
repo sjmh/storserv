@@ -7,7 +7,7 @@ class FlaskrTestCase(unittest.TestCase):
 
     def setUp(self):
         flaskr.application.config['TESTING'] = True
-        flaskr.application.config['SECRET'] = 'foo'
+        flaskr.application.config['SECRET_KEY'] = 'foo'
         self.application = flaskr.application.test_client()
 
     def tearDown(self):
@@ -19,33 +19,33 @@ class FlaskrTestCase(unittest.TestCase):
 
     @patch('application.jwt.encode')
     @patch('application.bcrypt.checkpw')
-    @patch('application.s3')
-    def testLogin(self, ms3, mcheckpw, mencode):
+    @patch('application.get_db')
+    def testLogin(self, m_db, m_checkpw, m_encode):
         # Mock out s3 calls
-        ms3.head_object = MagicMock()
+        s3 = MagicMock()
+        s3.head_object = MagicMock(return_value=True)
         pwhash = MagicMock()
-        ms3.get_object = MagicMock(return_value={'Body': pwhash})
+        s3.get_object = MagicMock(return_value={'Body': pwhash})
+        m_db.return_value = s3
 
         # Test a valid login
         pwhash.read = MagicMock(
             return_value='asaltedpw'
         )
 
-        mcheckpw.return_value = True
-        mencode.return_value = 'mytoken'
+        m_checkpw.return_value = True
+        m_encode.return_value = 'mytoken'
         rv = self.application.post('/v1/login', data=dict(
                                    username='admin',
                                    password='password'))
         assert 'mytoken' in rv.data
-        mcheckpw.assert_called_with('password', 'asaltedpw')
+        m_checkpw.assert_called_with('password', 'asaltedpw')
 
         # It's hard to test if encode was called with the right paramemters because it calls it
         # with a time based expiration, so we'll just ensure we're encoding here
-        mencode.assert_called()
-        ms3.head_object.assert_called_with(Bucket='storserv-users', Key='admin')
-        ms3.get_object.assert_called_with(Bucket='storserv-users', Key='admin')
-
-    def test
+        m_encode.assert_called()
+        s3.head_object.assert_called_with(Bucket='storserv-users', Key='admin')
+        s3.get_object.assert_called_with(Bucket='storserv-users', Key='admin')
 
 
 if __name__ == '__main__':
