@@ -11,6 +11,7 @@ import requests
 
 application = flask.Flask(__name__)
 application.config['EXPIRE'] = 3600
+application.config['PREFIX'] = 'storserv'
 
 ERR_UNKNOWN = 100
 ERR_KEY_NOT_EXIST = 200
@@ -187,10 +188,11 @@ def login():
     '''
     s3 = get_db()
     if 'username' in flask.request.form and 'password' in flask.request.form:
+        bucket = '{0}-users'.format(application.config['PREFIX'])
         user = flask.request.form['username'].encode('utf-8')
         password = flask.request.form['password'].encode('utf-8')
         try:
-            s3.head_object(Bucket='storserv-users', Key=user)
+            s3.head_object(Bucket=bucket, Key=user)
         except botocore.exceptions.ClientError:
             return error('Invalid username or password', ERR_UNAUTHORIZED)
 
@@ -200,10 +202,11 @@ def login():
         # name could then be obtained by that and it could be randomly generated,
         # which would have less of a chance of a collision.
 
-        pwhash = s3.get_object(Bucket='storserv-users', Key=user)
+        pwhash = s3.get_object(Bucket=bucket, Key=user)
         if bcrypt.checkpw(password, pwhash['Body'].read()):
+            user_bucket = '{0}-{1}'.format(bucket, user)
             payload = {
-                'buk': 'storserv-{0}'.format(user),
+                'buk': user_bucket,
                 'exp': time.time() + application.config['EXPIRE']
             }
             try:
