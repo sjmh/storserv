@@ -19,6 +19,7 @@ In order for this to be deployed via elastic beanstalk, you'll need to configure
 The demo is available via curl at https://kvstore.phase2.net, with the username 'demo', password 'demo'
 
 Quick reference:
+
     - /v1/ping (GET)
     - /v1/login (POST, username, password)
     - /v1/data/ (keystore)
