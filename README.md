@@ -16,9 +16,44 @@ In order for this to be deployed via elastic beanstalk, you'll need to configure
 
 ## demo
 
-The demo is available at https://kvstore.phase2.net, with the username 'demo', password 'demo'
+The demo is available via curl at https://kvstore.phase2.net, with the username 'demo', password 'demo'
 
 Quick reference:
     - /v1/ping (GET)
     - /v1/login (POST, username, password)
     - /v1/data/ (keystore)
+
+## login
+
+Once you've logged in, you'll receive a JWT token.  This token needs to be passed back to each subsequent API call via the header:
+
+```
+Authorization: Bearer <token>
+```
+
+## example
+
+Request:
+```
+curl -k https://kvstore.phase2.net/v1/login -X POST -d username=demo -d password=demo
+```
+
+Response:
+```
+{
+  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJidWsiOiJzdG9yc2Vydi1kZW1vIiwiZXhwIjoxNDk0MTgxMDUzLjE1NjAxM30.Ow4IdDucwA1dEwo0SGpgWn58r9_rhhoJPDlSkH7CRT4"
+}
+```
+
+Request:
+```
+curl -k -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJidWsiOiJzdG9yc2Vydi1kZW1vIiwiZXhwIjoxNDk0MTgxMDUzLjE1NjAxM30.Ow4IdDucwA1dEwo0SGpgWn58r9_rhhoJPDlSkH7CRT4' https://kvstore.phase2.net/v1/data/foo -X POST -d value=bar
+```
+
+Response:
+```
+{
+  "key": "foo",
+  "value": "bar"
+}
+```
