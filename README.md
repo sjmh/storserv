@@ -84,6 +84,3 @@ Response:
   "value": "bar"
 }
 ```
-
-Request:
-``
