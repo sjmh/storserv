@@ -204,7 +204,7 @@ def login():
 
         pwhash = s3.get_object(Bucket=bucket, Key=user)
         if bcrypt.checkpw(password, pwhash['Body'].read()):
-            user_bucket = '{0}-{1}'.format(bucket, user)
+            user_bucket = '{0}-{1}'.format(application.config['PREFIX'], user)
             payload = {
                 'buk': user_bucket,
                 'exp': time.time() + application.config['EXPIRE']
